@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationIcon>CSharpRunner.ico</ApplicationIcon>
+    <AssemblyName>CSharpRunner</AssemblyName>
+    <Authors>hmovaghari</Authors>
+    <Copyright>Copyright © hmovaghari  2024</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="CSharpRunner.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CodingSeb.ExpressionEvaluator" Version="1.4.40" />
+  </ItemGroup>
+
+</Project>
