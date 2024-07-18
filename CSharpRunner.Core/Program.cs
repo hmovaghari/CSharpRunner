@@ -1,15 +1,71 @@
 ﻿using CodingSeb.ExpressionEvaluator;
-using System.Collections.Generic;
+using Newtonsoft.Json;
 
 Console.Title = "CSharpRunner";
 
-var compiler = new ExpressionEvaluator();
+var compiler = new ExpressionEvaluator()
+{
+    OptionScriptNeedSemicolonAtTheEndOfLastExpression = true,
+    OptionCaseSensitiveEvaluationActive = true,
+    CacheTypesResolutions = true,
+};
+
+compiler.Namespaces.Add("System.Windows");
+compiler.Namespaces.Add("System.Diagnostics");
+compiler.EvaluateVariable += Evaluator_EvaluateVariable;
+
+void Evaluator_EvaluateVariable(object? sender, VariableEvaluationEventArg e)
+{
+    if (e.This != null)
+    {
+        if (e.Name.Equals("Json"))
+        {
+            e.Value = JsonConvert.SerializeObject(e.This);
+        }
+        else if (e.Name.Equals("MethodsNames"))
+        {
+            e.Value = JsonConvert.SerializeObject(e.This.GetType().GetMethods().Select(m => m.Name));
+        }
+        else if (e.Name.Equals("PropertiesNames"))
+        {
+            e.Value = JsonConvert.SerializeObject(e.This.GetType().GetProperties().Select(m => m.Name));
+        }
+        else if (e.Name.Equals("FieldsNames"))
+        {
+            e.Value = JsonConvert.SerializeObject(e.This.GetType().GetFields().Select(m => m.Name));
+        }
+    }
+}
+
+compiler.EvaluateFunction += Evaluator_EvaluateFunction;
+
+void Evaluator_EvaluateFunction(object? sender, FunctionEvaluationEventArg e)
+{
+    throw new NotImplementedException();
+}
+
 var code = string.Empty;
 
 if ((args?.Length ?? 0) > 0)
 {
-    args.ToList().ForEach(a => { code += a; code += " "; });
-    Compile(compiler, code);
+    var arg = string.Empty;
+    var isWait = false;
+    args.ToList().ForEach(a => { arg += a; });
+    if (arg.ToLower().EndsWith(".cs") || arg.ToLower().EndsWith(".cs\""))
+    {
+        string[] lines = File.ReadAllLines(arg.Trim('"'));
+        foreach (string line in lines)
+        {
+            code += line;
+            code += Environment.NewLine;
+        }
+        isWait = true;
+    }
+    else
+    {
+        code = arg;
+    }
+    Compile(compiler, code, isWait);
 }
 else
 {
@@ -18,7 +74,7 @@ else
     do
     {
         isExit = RunApp();
-    } while (!isExit);
+    } while (true);
 }
 
 void ShowCSharpRunner()
@@ -48,7 +104,7 @@ bool RunApp()
     var isExit = code.ToLower() == "exit";
     if (!isExit)
     {
-        Compile(compiler, code);
+        Compile(compiler, code, isWait: false);
         isExit = false;
     }
     else
@@ -58,11 +114,12 @@ bool RunApp()
     return isExit;
 }
 
-void Compile(ExpressionEvaluator compiler, string code)
+void Compile(ExpressionEvaluator compiler, string code, bool isWait)
 {
     try
     {
-        Console.WriteLine(compiler.Evaluate(code));
+        var _code = compiler.RemoveComments(code);
+        Console.WriteLine(compiler.ScriptEvaluate(_code));
     }
     catch (Exception ex)
     {
@@ -77,5 +134,13 @@ void Compile(ExpressionEvaluator compiler, string code)
         Console.WriteLine($"TargetSite: {ex.TargetSite}");
         Console.WriteLine($"StackTrace: {ex.StackTrace}");
         Console.ResetColor();
+    }
+    finally
+    {
+        if (isWait)
+        {
+            Console.Write("Press any key to continue . . .");
+            Console.ReadKey();
+        }
     }
 }

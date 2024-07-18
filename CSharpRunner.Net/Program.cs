@@ -1,26 +1,52 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
+﻿using CodingSeb.ExpressionEvaluator;
+using Newtonsoft.Json;
+using System;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using CodingSeb.ExpressionEvaluator;
+using System.IO;
 
 namespace CSharpRunner.Net
 {
     internal class Program
     {
-        private static ExpressionEvaluator compiler = new ExpressionEvaluator();
+        private static ExpressionEvaluator compiler = new ExpressionEvaluator()
+        {
+            OptionScriptNeedSemicolonAtTheEndOfLastExpression = true,
+            OptionCaseSensitiveEvaluationActive = true,
+            CacheTypesResolutions = true,
+        };
+
         private static String code = string.Empty;
 
         static void Main(string[] args)
         {
+            compiler.Namespaces.Add("System.Windows");
+            compiler.Namespaces.Add("System.Diagnostics");
+            compiler.EvaluateVariable += Evaluator_EvaluateVariable;
+            compiler.EvaluateFunction += Evaluator_EvaluateFunction;
+
+            
             Console.Title = "CSharpRunner";
 
             if ((args?.Length ?? 0) > 0)
             {
-                args.ToList().ForEach(a => { code += a; code += " "; });
-                Compile(compiler, code);
+                var arg = string.Empty;
+                var isWait = false;
+                args.ToList().ForEach(a => { arg += a; });
+                if (arg.ToLower().EndsWith(".cs") || arg.ToLower().EndsWith(".cs\""))
+                {
+                    string[] lines = File.ReadAllLines(arg.Trim('"'));
+                    foreach (string line in lines)
+                    {
+                        code += line;
+                        code += Environment.NewLine;
+                        isWait = true;
+                    }
+                }
+                else
+                {
+                    code = arg;
+                }
+                Compile(compiler, code, isWait);
             }
             else
             {
@@ -30,6 +56,33 @@ namespace CSharpRunner.Net
                 {
                     isExit = RunApp();
                 } while (true);
+            }
+        }
+
+        private static void Evaluator_EvaluateFunction(object sender, FunctionEvaluationEventArg e)
+        {
+        }
+
+        private static void Evaluator_EvaluateVariable(object sender, VariableEvaluationEventArg e)
+        {
+            if (e.This != null)
+            {
+                if (e.Name.Equals("Json"))
+                {
+                    e.Value = JsonConvert.SerializeObject(e.This);
+                }
+                else if (e.Name.Equals("MethodsNames"))
+                {
+                    e.Value = JsonConvert.SerializeObject(e.This.GetType().GetMethods().Select(m => m.Name));
+                }
+                else if (e.Name.Equals("PropertiesNames"))
+                {
+                    e.Value = JsonConvert.SerializeObject(e.This.GetType().GetProperties().Select(m => m.Name));
+                }
+                else if (e.Name.Equals("FieldsNames"))
+                {
+                    e.Value = JsonConvert.SerializeObject(e.This.GetType().GetFields().Select(m => m.Name));
+                }
             }
         }
 
@@ -43,7 +96,7 @@ namespace CSharpRunner.Net
             var isExit = code.ToLower() == "exit";
             if (!isExit)
             {
-                Compile(compiler, code);
+                Compile(compiler, code, isWait: false);
                 isExit = false;
             }
             else
@@ -70,11 +123,12 @@ namespace CSharpRunner.Net
             Console.ResetColor();
         }
 
-        private static void Compile(ExpressionEvaluator compiler, string code)
+        private static void Compile(ExpressionEvaluator compiler, string code, bool isWait)
         {
             try
             {
-                Console.WriteLine(compiler.Evaluate(code));
+                var _code = compiler.RemoveComments(code);
+                Console.WriteLine(compiler.ScriptEvaluate(_code));
             }
             catch (Exception ex)
             {
@@ -89,6 +143,14 @@ namespace CSharpRunner.Net
                 Console.WriteLine($"TargetSite: {ex.TargetSite}");
                 Console.WriteLine($"StackTrace: {ex.StackTrace}");
                 Console.ResetColor();
+            }
+            finally
+            {
+                if (isWait)
+                {
+                    Console.Write("Press any key to continue . . .");
+                    Console.ReadKey();
+                }
             }
         }
     }
